@@ -1,29 +1,25 @@
 <?php
 
-namespace Johndodev\JmonitorBundle;
+namespace Jmonitor\JmonitorBundle;
 
-use Johndodev\JmonitorBundle\Collector\Apache\ApacheCollector;
-use Johndodev\JmonitorBundle\Collector\Mysql\MysqlQueriesCountCollector;
-use Johndodev\JmonitorBundle\Collector\Mysql\MysqlSlowQueriesCollector;
-use Johndodev\JmonitorBundle\Collector\Mysql\MysqlStatusCollector;
-use Johndodev\JmonitorBundle\Collector\Mysql\MysqlVariablesCollector;
-use Johndodev\JmonitorBundle\Collector\Php\PhpCollector;
-use Johndodev\JmonitorBundle\Collector\Redis\RedisCollector;
-use Johndodev\JmonitorBundle\Collector\System\SystemCollector;
-use Johndodev\JmonitorBundle\Command\CollectorCommand;
-use Johndodev\JmonitorBundle\Jmonitor\Client;
-use Johndodev\JmonitorBundle\Jmonitor\Jmonitor;
+use Jmonitor\Collector\Apache\ApacheCollector;
+use Jmonitor\Collector\Mysql\Adapter\DoctrineAdapter;
+use Jmonitor\Collector\Mysql\MysqlQueriesCountCollector;
+use Jmonitor\Collector\Mysql\MysqlStatusCollector;
+use Jmonitor\Collector\Mysql\MysqlVariablesCollector;
+use Jmonitor\Collector\Php\PhpCollector;
+use Jmonitor\Collector\Redis\RedisCollector;
+use Jmonitor\Collector\System\SystemCollector;
+use Jmonitor\Jmonitor;
+use Jmonitor\JmonitorBundle\Command\CollectorCommand;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
-use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
 
 class JmonitorBundle extends AbstractBundle
 {
-    private const VERSION = 'alpha';
-
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
         if (!$config['enabled']) {
@@ -34,28 +30,16 @@ class JmonitorBundle extends AbstractBundle
             return;
         }
 
-        $container->services()->set(Client::class)
-            ->args([
-                $config['base_url'],
-                self::VERSION,
-                $config['project_api_key'],
-                $config['http_client'] ? service($config['http_client']) : null,
-            ])
-        ;
-
         $container->services()->set(Jmonitor::class)
             ->args([
-                // service(Client::class),
-                tagged_iterator('jmonitor.collector', 'name')
+                $config['project_api_key'],
+                $config['http_client'] ? service($config['http_client']) : null,
             ])
         ;
 
         $container->services()->set(CollectorCommand::class)
             ->args([
                 service(Jmonitor::class),
-                service($config['cache']),
-                service(Client::class),
-//                service($config['logger'] ?? '')->ignoreOnInvalid(),
                 $config['logger'] ? service($config['logger']) : null,
             ])
             ->tag('console.command')
@@ -67,32 +51,38 @@ class JmonitorBundle extends AbstractBundle
         ;
 
         if ($config['collectors']['mysql']['enabled'] ?? false) {
+            $container->services()->set(DoctrineAdapter::class)
+                ->args([
+                    service('doctrine.dbal.default_connection'),
+                ])
+            ;
+
             $container->services()->set(MysqlQueriesCountCollector::class)
                 ->args([
-                    service('doctrine.dbal.default_connection')
+                    service(DoctrineAdapter::class),
+                    $config['collectors']['mysql']['db_name']
                 ])
                 ->tag('jmonitor.collector', ['name' => 'mysql.queries_count'])
             ;
 
-            $container->services()->set(MysqlSlowQueriesCollector::class)
-                ->args([
-                    service('doctrine.dbal.default_connection')
-                ])
-                ->tag('jmonitor.collector', ['name' => 'mysql.slow_queries'])
-            ;
-
             $container->services()->set(MysqlStatusCollector::class)
                 ->args([
-                    service('doctrine.dbal.default_connection')
+                    service(DoctrineAdapter::class),
                 ])
                 ->tag('jmonitor.collector', ['name' => 'mysql.status'])
             ;
 
             $container->services()->set(MysqlVariablesCollector::class)
                 ->args([
-                    service('doctrine.dbal.default_connection')
+                    service(DoctrineAdapter::class),
                 ])
                 ->tag('jmonitor.collector', ['name' => 'mysql.variables'])
+            ;
+
+            $container->services()->get(Jmonitor::class)
+                ->call('addCollector', [service(MysqlQueriesCountCollector::class)])
+                ->call('addCollector', [service(MysqlStatusCollector::class)])
+                ->call('addCollector', [service(MysqlVariablesCollector::class)])
             ;
         }
 
@@ -103,24 +93,24 @@ class JmonitorBundle extends AbstractBundle
                 ])
                 ->tag('jmonitor.collector', ['name' => 'apache'])
             ;
+
+            $container->services()->get(Jmonitor::class)->call('addCollector', [service(ApacheCollector::class)]);
         }
 
         if ($config['collectors']['system']['enabled'] ?? false) {
             $container->services()->set(SystemCollector::class)
-                ->args([
-                    service($config['cache']),
-                ])
                 ->tag('jmonitor.collector', ['name' => 'system'])
             ;
+
+            $container->services()->get(Jmonitor::class)->call('addCollector', [service(SystemCollector::class)]);
         }
 
         if ($config['collectors']['php']['enabled'] ?? false) {
             $container->services()->set(PhpCollector::class)
-                ->args([
-                    $config['collectors']['php']['fpm_status_url'],
-                ])
                 ->tag('jmonitor.collector', ['name' => 'php'])
             ;
+
+            $container->services()->get(Jmonitor::class)->call('addCollector', [service(PhpCollector::class)]);
         }
 
         if ($config['collectors']['redis']['enabled'] ?? false) {
@@ -130,6 +120,8 @@ class JmonitorBundle extends AbstractBundle
                 ])
                 ->tag('jmonitor.collector', ['name' => 'redis'])
             ;
+
+            $container->services()->get(Jmonitor::class)->call('addCollector', [service(RedisCollector::class)]);
         }
     }
 
@@ -142,9 +134,8 @@ class JmonitorBundle extends AbstractBundle
             ->children() // jmonitor
                 ->booleanNode('enabled')->defaultTrue()->end()
                 ->scalarNode('project_api_key')->defaultNull()->info('You can find it in your jmonitor.io settings.')->end()
-                ->scalarNode('base_url')->defaultValue('https://collector.jmonitor.io')->cannotBeEmpty()->end()
                 ->scalarNode('http_client')->defaultNull()->info('Name of a Psr\Http\Client\ClientInterface service. Optional. If null, Psr18ClientDiscovery will be used.')->end()
-                ->scalarNode('cache')->cannotBeEmpty()->defaultValue('cache.app')->info('Name of a Psr\Cache\CacheItemPoolInterface service, default is "cache.app". Required.')->end()
+                // ->scalarNode('cache')->cannotBeEmpty()->defaultValue('cache.app')->info('Name of a Psr\Cache\CacheItemPoolInterface service, default is "cache.app". Required.')->end()
                 ->scalarNode('logger')->defaultValue('logger')->info('Name of a Psr\Log\LoggerInterface service, default is "logger". Set null to disable logging.')->end()
                 ->scalarNode('schedule')->cannotBeEmpty()->defaultValue('default')->info('Name of the schedule used to handle the recurring metrics collection, default is "default". Required.')->end()
                 ->arrayNode('collectors')
@@ -154,6 +145,7 @@ class JmonitorBundle extends AbstractBundle
                         ->arrayNode('mysql')
                             ->children()
                                 ->booleanNode('enabled')->defaultTrue()->end()
+                                ->scalarNode('db_name')->info('Db name of your project.')->end()
                                 // ->scalarNode('connection')->defaultValue('doctrine.dbal.default_connection')->end()
 //                                ->booleanNode('mysql_queries_count')->defaultTrue()->end()
 //                                ->booleanNode('mysql_slow_queries')->defaultTrue()->end()
@@ -180,15 +172,23 @@ class JmonitorBundle extends AbstractBundle
                         ->arrayNode('php')
                             ->children()
                                 ->booleanNode('enabled')->defaultTrue()->end()
-                                ->scalarNode('fpm_status_url')->defaultNull()->info('Url of php-fpm status page.')->end()
                             ->end()
                         ->end()
                     ->end()
                 ->end()
             ->end()
             ->validate()
-                ->ifTrue(fn($config) => is_array($config) && $config['enabled'] && empty($config['project_api_key']))
+                ->ifTrue(fn($config) => isset($config['enabled']) && $config['enabled'] === true && empty($config['project_api_key']))
                 ->thenInvalid('The "project_api_key" must be set if "enabled" is true.')
+            ->end()
+            ->validate()
+                ->ifTrue(function ($config): bool {
+                    return
+                        isset($config['collectors']['mysql']['enabled'])
+                        && $config['collectors']['mysql']['enabled'] === true
+                        && empty($config['collectors']['mysql']['db_name']);
+                })
+            ->thenInvalid('The "db_name" must be set if MySQL collector is enabled.')
             ->end()
         ;
     }
