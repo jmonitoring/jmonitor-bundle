@@ -37,18 +37,27 @@ class JmonitorBundle extends AbstractBundle
             ])
         ;
 
-        $container->services()->set(CollectorCommand::class)
+        $collector = $container->services()->set(CollectorCommand::class)
             ->args([
                 service(Jmonitor::class),
                 $config['logger'] ? service($config['logger']) : null,
             ])
             ->tag('console.command')
-            ->tag('scheduler.task', [
+        ;
+
+        if ($config['schedule'] === null) {
+            if (class_exists('Symfony\Component\Scheduler\Scheduler')){
+                $config['schedule'] = 'default';
+            }
+        }
+
+        if ($config['schedule']) {
+            $collector->tag('scheduler.task', [
                 'frequency' => 15,
                 'schedule' => $config['schedule'],
                 'trigger' => 'every',
-            ])
-        ;
+            ]);
+        }
 
         if ($config['collectors']['mysql']['enabled'] ?? false) {
             $container->services()->set(DoctrineAdapter::class)
@@ -137,7 +146,7 @@ class JmonitorBundle extends AbstractBundle
                 ->scalarNode('http_client')->defaultNull()->info('Name of a Psr\Http\Client\ClientInterface service. Optional. If null, Psr18ClientDiscovery will be used.')->end()
                 // ->scalarNode('cache')->cannotBeEmpty()->defaultValue('cache.app')->info('Name of a Psr\Cache\CacheItemPoolInterface service, default is "cache.app". Required.')->end()
                 ->scalarNode('logger')->defaultValue('logger')->info('Name of a Psr\Log\LoggerInterface service, default is "logger". Set null to disable logging.')->end()
-                ->scalarNode('schedule')->cannotBeEmpty()->defaultValue('default')->info('Name of the schedule used to handle the recurring metrics collection, default is "default". Required.')->end()
+                ->scalarNode('schedule')->info('Name of the schedule used to handle the recurring metrics collection, default is "default" if Scheduler is installed')->end()
                 ->arrayNode('collectors')
                     ->addDefaultsIfNotSet() // permet de récup un tableau vide si pas de config
                     // ->useAttributeAsKey()
@@ -146,9 +155,6 @@ class JmonitorBundle extends AbstractBundle
                             ->children()
                                 ->booleanNode('enabled')->defaultTrue()->end()
                                 ->scalarNode('db_name')->info('Db name of your project.')->end()
-                                // ->scalarNode('connection')->defaultValue('doctrine.dbal.default_connection')->end()
-//                                ->booleanNode('mysql_queries_count')->defaultTrue()->end()
-//                                ->booleanNode('mysql_slow_queries')->defaultTrue()->end()
                             ->end()
                         ->end()
                         ->arrayNode('apache')
@@ -160,6 +166,7 @@ class JmonitorBundle extends AbstractBundle
                         ->arrayNode('system')
                             ->children()
                                 ->booleanNode('enabled')->defaultTrue()->end()
+                                ->scalarNode('adapter')->defaultNull()->end()
                             ->end()
                         ->end()
                         ->arrayNode('redis')
@@ -189,6 +196,14 @@ class JmonitorBundle extends AbstractBundle
                         && empty($config['collectors']['mysql']['db_name']);
                 })
             ->thenInvalid('The "db_name" must be set if MySQL collector is enabled.')
+            ->end()
+            ->validate()
+                ->ifTrue(function ($config): bool {
+                    return
+                        !empty($config['collectors']['redis']['dsn'])
+                        && !empty($config['collectors']['redis']['adapter']);
+                })
+                ->thenInvalid('You cannot set both "dsn" and "adapter" for Redis collector. Please choose one.')
             ->end()
         ;
     }

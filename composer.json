@@ -21,6 +21,9 @@
         "symfony/framework-bundle": "^6.4|^7.0",
         "symfony/http-client": "^6.4|^7.0"
     },
+    "suggest": {
+        "symfony/scheduler": "If you want the bundle to automatically collect metrics at regular intervals."
+    },
     "config": {
         "sort-packages": true,
         "allow-plugins": {
@@ -33,4 +36,4 @@
     "autoload-dev": {
         "psr-4": { "Jmonitor\\JmonitorBundle\\Tests\\": "tests/" }
     }
-}
+},
