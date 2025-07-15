@@ -21,8 +21,18 @@
         "symfony/framework-bundle": "^6.4|^7.0",
         "symfony/http-client": "^6.4|^7.0"
     },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^10.5"
+    },
     "suggest": {
         "symfony/scheduler": "If you want the bundle to automatically collect metrics at regular intervals."
+    },
+    "autoload": {
+        "psr-4": { "Jmonitor\\JmonitorBundle\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Jmonitor\\JmonitorBundle\\Tests\\": "tests/" }
     },
     "config": {
         "sort-packages": true,
@@ -30,10 +40,7 @@
             "php-http/discovery": true
         }
     },
-    "autoload": {
-        "psr-4": { "Jmonitor\\JmonitorBundle\\": "src/" }
-    },
-    "autoload-dev": {
-        "psr-4": { "Jmonitor\\JmonitorBundle\\Tests\\": "tests/" }
+    "scripts": {
+        "phpstan": "./vendor/bin/phpstan"
     }
-},
+}
