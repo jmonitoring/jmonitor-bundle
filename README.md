@@ -34,13 +34,18 @@ jmonitor:
     
     # Enable the collectors you want to use.
     collectors:
-        system: ~
+        system: 
+            enabled: true
         apache:
+            enabled: true
             server_status_url: 'https://localhost/server-status' # for more informations, see https://github.com/jmonitoring/jmonitor?tab=readme-ov-file#apache 
         mysql:
+            enabled: true
             db_name: 'your_db_name'
-        php: ~
+        php: 
+            enabled: true
         redis: 
+            enabled: true
             # you can use either DSN or a service name (adapter). 
             # Remove the unused one.
             dsn: '%env(SOME_REDIS_DSN)%'

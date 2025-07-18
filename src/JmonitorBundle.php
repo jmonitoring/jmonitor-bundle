@@ -46,7 +46,7 @@ class JmonitorBundle extends AbstractBundle
         ;
 
         if ($config['schedule'] === null) {
-            if (class_exists('Symfony\Component\Scheduler\Scheduler')){
+            if (class_exists('Symfony\Component\Scheduler\Scheduler')) {
                 $config['schedule'] = 'default';
             }
         }
@@ -107,7 +107,15 @@ class JmonitorBundle extends AbstractBundle
         }
 
         if ($config['collectors']['system']['enabled'] ?? false) {
+            if ($config['collectors']['system']['adapter'] ?? null) {
+                $container->services()->set($config['collectors']['system']['adapter']);
+            }
+
+
             $container->services()->set(SystemCollector::class)
+                ->args([
+                    $config['collectors']['system']['adapter'] ? service($config['collectors']['system']['adapter']) : null,
+                ])
                 ->tag('jmonitor.collector', ['name' => 'system'])
             ;
 
@@ -146,7 +154,7 @@ class JmonitorBundle extends AbstractBundle
                 ->scalarNode('http_client')->defaultNull()->info('Name of a Psr\Http\Client\ClientInterface service. Optional. If null, Psr18ClientDiscovery will be used.')->end()
                 // ->scalarNode('cache')->cannotBeEmpty()->defaultValue('cache.app')->info('Name of a Psr\Cache\CacheItemPoolInterface service, default is "cache.app". Required.')->end()
                 ->scalarNode('logger')->defaultValue('logger')->info('Name of a Psr\Log\LoggerInterface service, default is "logger". Set null to disable logging.')->end()
-                ->scalarNode('schedule')->info('Name of the schedule used to handle the recurring metrics collection, default is "default" if Scheduler is installed')->end()
+                ->scalarNode('schedule')->defaultNull()->info('Name of the schedule used to handle the recurring metrics collection, default is "default" if Scheduler is installed')->end()
                 ->arrayNode('collectors')
                     ->addDefaultsIfNotSet() // permet de récup un tableau vide si pas de config
                     // ->useAttributeAsKey()
