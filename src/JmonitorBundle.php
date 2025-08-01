@@ -56,6 +56,7 @@ class JmonitorBundle extends AbstractBundle
                 'frequency' => 15,
                 'schedule' => $config['schedule'],
                 'trigger' => 'every',
+                'arguments' => null,
             ]);
         }
 
