@@ -12,6 +12,7 @@ use Jmonitor\Collector\Redis\RedisCollector;
 use Jmonitor\Collector\System\SystemCollector;
 use Jmonitor\Jmonitor;
 use Jmonitor\JmonitorBundle\Command\CollectorCommand;
+use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -149,6 +150,7 @@ class JmonitorBundle extends AbstractBundle
      */
     public function configure(DefinitionConfigurator $definition): void
     {
+        // @phpstan-ignore-next-line
         $definition->rootNode()
             ->children() // jmonitor
                 ->booleanNode('enabled')->defaultTrue()->end()
