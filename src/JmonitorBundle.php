@@ -16,6 +16,7 @@ use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
+
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
 class JmonitorBundle extends AbstractBundle
@@ -70,7 +71,7 @@ class JmonitorBundle extends AbstractBundle
             $container->services()->set(MysqlQueriesCountCollector::class)
                 ->args([
                     service(DoctrineAdapter::class),
-                    $config['collectors']['mysql']['db_name']
+                    $config['collectors']['mysql']['db_name'],
                 ])
                 ->tag('jmonitor.collector', ['name' => 'mysql.queries_count'])
             ;
